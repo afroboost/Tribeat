@@ -3,39 +3,22 @@
  * Route protégée par middleware
  */
 
-import { getAuthSession } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { prisma } from '@/lib/prisma';
 
 export default async function AdminDashboardPage() {
-  // Double sécurité : vérification côté serveur
-  const session = await getAuthSession();
-
-  if (!session || session.user.role !== 'SUPER_ADMIN') {
-    redirect('/403');
-  }
+  // Récupérer les stats depuis la DB
+  const [userCount, sessionCount, settingsCount, translationsCount] = await Promise.all([
+    prisma.user.count(),
+    prisma.session.count(),
+    prisma.uI_Settings.count(),
+    prisma.translation.count(),
+  ]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            🔧 Admin Dashboard
-          </h1>
-          <Link href="/">
-            <Button variant="outline" data-testid="admin-home-button">
-              Retour Accueil
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      {/* Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="space-y-6">
+    <AdminLayout>
+      <div className="space-y-6">
           {/* Welcome Card */}
           <Card>
             <CardHeader>

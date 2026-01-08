@@ -167,7 +167,7 @@ model Translation {
   id       String   @id @default(cuid())
   key      String   // Ex: "session.join_button"
   language Language
-  value    String
+  value    String   @db.Text
   updatedAt DateTime @updatedAt
 
   @@unique([key, language])

@@ -1,27 +1,21 @@
 /**
- * Dashboard Admin - SUPER_ADMIN UNIQUEMENT
- * Route protégée par middleware + layout
+ * Dashboard Admin - DEBUG MODE
  */
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { prisma } from '@/lib/prisma';
-
-export default async function AdminDashboardPage() {
-  console.log('========== DASHBOARD PAGE RENDERING ==========');
+export default function AdminDashboardPage() {
+  console.log('========== DASHBOARD PAGE RENDERED ==========');
   
-  // Récupérer les stats depuis la DB
-  const [userCount, sessionCount, settingsCount, translationsCount] = await Promise.all([
-    prisma.user.count(),
-    prisma.session.count(),
-    prisma.uI_Settings.count(),
-    prisma.translation.count(),
-  ]);
-
-  console.log('Stats:', { userCount, sessionCount, settingsCount, translationsCount });
-  console.log('==============================================');
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <h2 className="text-2xl font-bold text-green-600">
+        DASHBOARD PAGE OK - DEBUG MODE
+      </h2>
+      <p className="text-gray-700">
+        Si vous voyez ce texte, le layout et la page fonctionnent.
+      </p>
+    </div>
+  );
+}
       {/* Welcome Card */}
       <Card>
           <CardHeader>

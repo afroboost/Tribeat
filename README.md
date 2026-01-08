@@ -162,10 +162,6 @@ tribeat/
 
 ## 🎯 Prochaines Phases
 
-### Phase 2 : Base de Données & Seed
-- [ ] Migration Prisma
-- [ ] Seed des données initiales (UI_Settings, Translations, Users Admin)
-
 ### Phase 3 : Authentification
 - [ ] Configuration NextAuth.js
 - [ ] Pages login/register

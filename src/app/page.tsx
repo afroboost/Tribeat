@@ -103,6 +103,17 @@ export default async function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Footer Discret - "Ghost Admin Access" */}
+      <footer className="py-8 text-center">
+        <Link
+          href="/admin"
+          className="text-sm text-gray-500 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-500 transition-colors"
+          data-testid="footer-admin-link"
+        >
+          © 2025 Tribeat
+        </Link>
+      </footer>
     </div>
   );
 }

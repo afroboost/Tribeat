@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/prisma';
 
 export default async function AdminDashboardPage() {
+  console.log('========== DASHBOARD PAGE RENDERING ==========');
+  
   // Récupérer les stats depuis la DB
   const [userCount, sessionCount, settingsCount, translationsCount] = await Promise.all([
     prisma.user.count(),
@@ -14,6 +16,9 @@ export default async function AdminDashboardPage() {
     prisma.uI_Settings.count(),
     prisma.translation.count(),
   ]);
+
+  console.log('Stats:', { userCount, sessionCount, settingsCount, translationsCount });
+  console.log('==============================================');
 
   return (
     <div className="space-y-6">

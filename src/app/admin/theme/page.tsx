@@ -36,7 +36,6 @@ export default async function AdminThemePage() {
           initialThemeSettings={themeSettings || []}
           initialPwaSettings={pwaSettings || []}
         />
-      </div>
-    </AdminLayout>
+    </div>
   );
 }

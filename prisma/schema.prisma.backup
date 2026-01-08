@@ -1,0 +1,209 @@
+// Tribeat Database Schema
+// PostgreSQL avec Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================================
+// USERS & AUTHENTICATION
+// ========================================
+
+enum UserRole {
+  SUPER_ADMIN
+  COACH
+  PARTICIPANT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // Hashé avec bcrypt
+  role      UserRole @default(PARTICIPANT)
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  coachedSessions  Session[]           @relation("CoachSessions")
+  sessionRoles     SessionParticipant[]
+  messages         ChatMessage[]
+  transactions     Transaction[]
+
+  @@index([email])
+}
+
+// ========================================
+// SESSIONS LIVE
+// ========================================
+
+enum SessionStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum MediaType {
+  VIDEO
+  AUDIO
+  IMAGE
+}
+
+model Session {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  coachId     String
+  coach       User          @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
+  
+  // Média synchronisé
+  mediaUrl    String?       // URL Cloudinary / Vercel Blob ou externe
+  mediaType   MediaType?
+  
+  // Planification
+  scheduledAt DateTime
+  startedAt   DateTime?
+  endedAt     DateTime?
+  status      SessionStatus @default(SCHEDULED)
+  
+  // Métadonnées
+  maxParticipants Int?
+  isPublic        Boolean @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  participants SessionParticipant[]
+  messages     ChatMessage[]
+
+  @@index([coachId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+// ========================================
+// MANY-TO-MANY : USER ↔ SESSION
+// ========================================
+
+enum ParticipantRole {
+  COACH
+  PARTICIPANT
+  MODERATOR
+}
+
+model SessionParticipant {
+  id        String          @id @default(cuid())
+  userId    String
+  sessionId String
+  role      ParticipantRole @default(PARTICIPANT)
+  joinedAt  DateTime        @default(now())
+  leftAt    DateTime?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sessionId])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+// ========================================
+// CHAT EN TEMPS RÉEL
+// ========================================
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String
+  content   String   @db.Text
+  timestamp DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([timestamp])
+}
+
+// ========================================
+// UI SETTINGS (THÈME DYNAMIQUE)
+// ========================================
+
+enum SettingCategory {
+  THEME
+  PWA
+  GENERAL
+}
+
+model UI_Settings {
+  id       String          @id @default(cuid())
+  key      String          @unique
+  value    String          @db.Text
+  category SettingCategory
+  updatedAt DateTime       @updatedAt
+
+  @@index([category])
+}
+
+// ========================================
+// TRADUCTIONS (i18n EN BASE)
+// ========================================
+
+enum Language {
+  FR
+  EN
+  DE
+}
+
+model Translation {
+  id       String   @id @default(cuid())
+  key      String   // Ex: "session.join_button"
+  language Language
+  value    String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, language])
+  @@index([language])
+}
+
+// ========================================
+// TRANSACTIONS (STRIPE / TWINT)
+// ========================================
+
+enum TransactionProvider {
+  STRIPE
+  TWINT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Transaction {
+  id              String              @id @default(cuid())
+  userId          String
+  amount          Int                 // En centimes (ex: 1000 = 10.00 CHF)
+  currency        String              @default("CHF")
+  provider        TransactionProvider
+  providerTxId    String?             // ID transaction Stripe/Twint
+  status          TransactionStatus   @default(PENDING)
+  metadata        Json?               // Données additionnelles
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}

@@ -5,6 +5,9 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from '@/components/providers/AuthProvider';
 import { prisma } from '@/lib/prisma';
 
+// Force dynamic rendering to always get fresh theme
+export const dynamic = 'force-dynamic';
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {

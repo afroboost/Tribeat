@@ -2,21 +2,45 @@
  * Admin Layout Next.js
  * Layout automatique pour toutes les pages /admin/*
  * 
- * CORRECTION : Utilisation correcte de getServerSession au lieu de getAuthSession
+ * Utilise notre système d'auth personnalisé
  */
 
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/authOptions';
+import { cookies } from 'next/headers';
+import { jwtVerify } from 'jose';
 import { redirect } from 'next/navigation';
 import { ReactNode } from 'react';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.NEXTAUTH_SECRET || 'tribeat-secret-key'
+);
+
+async function getSession() {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('tribeat-auth')?.value;
+    
+    if (!token) return null;
+    
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return {
+      user: {
+        id: payload.id as string,
+        email: payload.email as string,
+        name: payload.name as string,
+        role: payload.role as string,
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   console.log('========== ADMIN LAYOUT START ==========');
   
-  // Récupération session avec getServerSession (recommandé pour layouts)
-  const session = await getServerSession(authOptions);
+  const session = await getSession();
   
   console.log('Session:', !!session);
   console.log('User:', session?.user?.email);

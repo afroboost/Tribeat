@@ -3,12 +3,8 @@
 /**
  * Page d'Inscription
  * 
- * Architecture Production :
- * - Validation Zod complète
- * - Hash bcrypt côté serveur (Server Action)
- * - Vérification email unique
- * - Auto-login après inscription
- * - Toast notifications
+ * Utilise une Server Action personnalisée pour contourner
+ * le problème de proxy /api/* sur la plateforme Emergent
  */
 
 import { useState } from 'react';
@@ -23,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { signIn } from 'next-auth/react';
+import { registerAction } from '@/actions/auth';
 
 // Schéma de validation Zod
 const registerSchema = z
@@ -56,46 +52,25 @@ export default function RegisterPage() {
     },
   });
 
-  // Submit handler
+  // Submit handler utilisant Server Action
   async function onSubmit(values: RegisterFormValues) {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Appel API pour créer l'utilisateur (Server Action ou API route)
-      const response = await fetch('/nextauth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: values.name,
-          email: values.email,
-          password: values.password,
-        }),
-      });
+      // Utiliser notre Server Action personnalisée
+      const result = await registerAction(values.name, values.email, values.password);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Erreur (ex: email déjà utilisé)
-        setError(data.error || 'Une erreur est survenue');
-        toast.error(data.error || "Échec de l'inscription");
+      if (!result.success) {
+        setError(result.error || "Erreur d'inscription");
+        toast.error(result.error || "Échec de l'inscription");
         return;
       }
 
-      // Succès : auto-login
+      // Succès : rediriger
       toast.success('Compte créé avec succès !');
-
-      // Connexion automatique
-      const loginResult = await signIn('credentials', {
-        email: values.email,
-        password: values.password,
-        redirect: false,
-      });
-
-      if (loginResult?.ok) {
-        router.push('/sessions');
-        router.refresh();
-      }
+      router.push('/sessions');
+      router.refresh();
     } catch (error) {
       console.error('Register error:', error);
       setError('Une erreur est survenue. Veuillez réessayer.');

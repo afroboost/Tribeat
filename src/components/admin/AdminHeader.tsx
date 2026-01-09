@@ -6,9 +6,11 @@
 
 'use client';
 
-import { signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { LogOut, User } from 'lucide-react';
+import { logoutAction } from '@/actions/auth';
+import { toast } from 'sonner';
 
 interface AdminHeaderProps {
   user: {
@@ -19,6 +21,19 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ user }: AdminHeaderProps) {
+  const router = useRouter();
+
+  async function handleLogout() {
+    const result = await logoutAction();
+    if (result.success) {
+      toast.success('Déconnexion réussie');
+      router.push('/');
+      router.refresh();
+    } else {
+      toast.error('Erreur lors de la déconnexion');
+    }
+  }
+
   return (
     <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between px-6 py-4">
@@ -44,7 +59,7 @@ export function AdminHeader({ user }: AdminHeaderProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => signOut({ callbackUrl: '/' })}
+            onClick={handleLogout}
             data-testid="admin-logout-button"
           >
             <LogOut className="h-4 w-4 mr-2" />

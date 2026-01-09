@@ -105,12 +105,12 @@ export const config = {
     /*
      * Match toutes les routes sauf :
      * - api (backend proxy)
-     * - auth-api (NextAuth routes)
+     * - nextauth (NextAuth routes)
      * - _next/static
      * - _next/image
      * - favicon.ico
      * - public files
      */
-    '/((?!api|auth-api|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
+    '/((?!api|nextauth|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
   ],
 };

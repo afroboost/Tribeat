@@ -1,27 +1,33 @@
 /**
  * Page Admin - Gestion des Utilisateurs
- * Changement de rôles et gestion des comptes
  */
 
 import { UserList } from '@/components/admin/UserList';
 import { getAllUsers } from '@/actions/users';
 
+// FORCE DYNAMIC
+export const dynamic = 'force-dynamic';
+
 export default async function AdminUsersPage() {
-  const result = await getAllUsers();
-  const users = result.success ? result.data : [];
+  let users: any[] = [];
+  
+  try {
+    const result = await getAllUsers();
+    users = result.success ? (result.data || []) : [];
+  } catch (e) {
+    console.error('DB Error:', e);
+  }
 
   return (
     <div className="space-y-6">
+      <h1 style={{ color: 'red', fontSize: '24px', fontWeight: 'bold' }}>RENDER OK — USERS</h1>
+      
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          👥 Gestion des Utilisateurs
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Modifiez les rôles et gérez les comptes utilisateurs.
-        </p>
+        <h2 className="text-3xl font-bold text-gray-900">👥 Gestion des Utilisateurs</h2>
+        <p className="mt-2 text-gray-600">Modifiez les rôles et gérez les comptes.</p>
       </div>
 
-      <UserList initialUsers={users || []} />
+      <UserList initialUsers={users} />
     </div>
   );
 }

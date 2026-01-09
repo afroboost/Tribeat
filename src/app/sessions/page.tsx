@@ -26,7 +26,7 @@ export default async function SessionsPage() {
         { status: 'SCHEDULED' },
         {
           participants: {
-            some: { participantId: session.user.id }
+            some: { userId: session.user.id }
           }
         },
         { coachId: session.user.id }

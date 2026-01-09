@@ -84,6 +84,8 @@ model Session {
   // Relations
   participants SessionParticipant[]
   messages     ChatMessage[]
+  offers       Offer[]
+  accesses     UserAccess[]
 
   @@index([coachId])
   @@index([status])

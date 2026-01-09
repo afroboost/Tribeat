@@ -1,18 +1,15 @@
 /**
- * Page Session Live - Production
+ * Page Session Live
  */
 
 import { getAuthSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { redirect, notFound } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Users, Clock, User } from 'lucide-react';
-
-// FORCE DYNAMIC
-export const dynamic = 'force-dynamic';
 
 interface SessionPageProps {
   params: Promise<{ id: string }>;
@@ -22,27 +19,22 @@ export default async function SessionPage({ params }: SessionPageProps) {
   const { id } = await params;
   const session = await getAuthSession();
 
+  // Middleware gère la redirection si pas connecté
   if (!session) {
-    redirect(`/auth/login?callbackUrl=/session/${id}`);
+    return null;
   }
 
-  let liveSession: any = null;
-  
-  try {
-    liveSession = await prisma.session.findUnique({
-      where: { id },
-      include: {
-        coach: { select: { id: true, name: true, avatar: true } },
-        participants: {
-          include: {
-            user: { select: { id: true, name: true, avatar: true } }
-          }
+  const liveSession = await prisma.session.findUnique({
+    where: { id },
+    include: {
+      coach: { select: { id: true, name: true, avatar: true } },
+      participants: {
+        include: {
+          user: { select: { id: true, name: true, avatar: true } }
         }
       }
-    });
-  } catch (e) {
-    console.error('DB Error:', e);
-  }
+    }
+  }).catch(() => null);
 
   if (!liveSession) {
     notFound();
@@ -54,21 +46,20 @@ export default async function SessionPage({ params }: SessionPageProps) {
   const hasAccess = isCoach || isParticipant || isAdmin || liveSession.status === 'LIVE';
 
   if (!hasAccess) {
-    redirect('/sessions');
+    notFound();
   }
 
-  const statusConfig: Record<string, { label: string; color: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-    LIVE: { label: 'En direct', color: 'bg-red-500', variant: 'destructive' },
-    SCHEDULED: { label: 'Planifiée', color: 'bg-yellow-500', variant: 'secondary' },
-    COMPLETED: { label: 'Terminée', color: 'bg-gray-500', variant: 'outline' },
-    DRAFT: { label: 'Brouillon', color: 'bg-gray-400', variant: 'outline' },
+  const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    LIVE: { label: 'En direct', variant: 'destructive' },
+    SCHEDULED: { label: 'Planifiée', variant: 'secondary' },
+    COMPLETED: { label: 'Terminée', variant: 'outline' },
+    DRAFT: { label: 'Brouillon', variant: 'outline' },
   };
 
   const status = statusConfig[liveSession.status] || statusConfig.DRAFT;
 
   return (
     <div className="min-h-screen bg-gray-900">
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -93,12 +84,9 @@ export default async function SessionPage({ params }: SessionPageProps) {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <div className="grid lg:grid-cols-4 gap-6">
-          {/* Zone principale - Contenu Live */}
           <div className="lg:col-span-3 space-y-4">
-            {/* Zone média */}
             <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-0">
                 <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
@@ -108,9 +96,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
                         <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse" />
                       </div>
                       <p className="text-lg font-medium">Session en cours</p>
-                      <p className="text-sm text-gray-400 mt-2">
-                        Le contenu média sera affiché ici
-                      </p>
+                      <p className="text-sm text-gray-400 mt-2">Le contenu média sera affiché ici</p>
                     </div>
                   ) : liveSession.status === 'SCHEDULED' ? (
                     <div className="text-center text-white">
@@ -131,7 +117,6 @@ export default async function SessionPage({ params }: SessionPageProps) {
               </CardContent>
             </Card>
 
-            {/* Description */}
             {liveSession.description && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
@@ -144,7 +129,6 @@ export default async function SessionPage({ params }: SessionPageProps) {
             )}
           </div>
 
-          {/* Sidebar - Participants */}
           <div className="space-y-4">
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
@@ -154,7 +138,6 @@ export default async function SessionPage({ params }: SessionPageProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {/* Coach */}
                 <div className="flex items-center gap-3 p-2 bg-gray-700/50 rounded-lg">
                   <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-white" />
@@ -165,7 +148,6 @@ export default async function SessionPage({ params }: SessionPageProps) {
                   </div>
                 </div>
 
-                {/* Participants */}
                 {liveSession.participants.length > 0 ? (
                   liveSession.participants.map((p: any) => (
                     <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-700/30">
@@ -185,7 +167,6 @@ export default async function SessionPage({ params }: SessionPageProps) {
               </CardContent>
             </Card>
 
-            {/* Actions Coach */}
             {isCoach && (
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
@@ -193,14 +174,10 @@ export default async function SessionPage({ params }: SessionPageProps) {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {liveSession.status === 'SCHEDULED' && (
-                    <Button className="w-full" data-testid="start-session-button">
-                      Démarrer la session
-                    </Button>
+                    <Button className="w-full">Démarrer la session</Button>
                   )}
                   {liveSession.status === 'LIVE' && (
-                    <Button variant="destructive" className="w-full" data-testid="end-session-button">
-                      Terminer la session
-                    </Button>
+                    <Button variant="destructive" className="w-full">Terminer la session</Button>
                   )}
                 </CardContent>
               </Card>

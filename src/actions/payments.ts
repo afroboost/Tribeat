@@ -51,7 +51,7 @@ export async function createManualTransaction(
         currency,
         provider,
         status: 'PENDING',
-        metadata: metadata || {},
+        metadata: metadata ? JSON.stringify(metadata) : undefined,
       },
       include: {
         user: { select: { id: true, name: true, email: true } },

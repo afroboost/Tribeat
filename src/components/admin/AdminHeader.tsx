@@ -13,23 +13,25 @@ interface AdminHeaderProps {
     name?: string | null;
     email?: string | null;
     role?: string;
-  };
+  } | null;
 }
 
 export function AdminHeader({ user }: AdminHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
       <div className="flex items-center justify-between px-6 py-4">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white lg:hidden">Admin</h1>
+        <h1 className="text-xl font-bold text-gray-900 lg:hidden">Admin</h1>
         <div className="flex-1" />
         <div className="flex items-center gap-4">
-          <div className="hidden sm:flex items-center gap-2 text-sm">
-            <User className="h-4 w-4 text-gray-500" />
-            <div className="text-right">
-              <p className="font-semibold text-gray-900 dark:text-white">{user.name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{user.role}</p>
+          {user && (
+            <div className="hidden sm:flex items-center gap-2 text-sm">
+              <User className="h-4 w-4 text-gray-500" />
+              <div className="text-right">
+                <p className="font-semibold text-gray-900">{user.name}</p>
+                <p className="text-xs text-gray-500">{user.role}</p>
+              </div>
             </div>
-          </div>
+          )}
           <Button
             variant="outline"
             size="sm"

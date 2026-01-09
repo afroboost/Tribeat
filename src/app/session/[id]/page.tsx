@@ -167,7 +167,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
                         <User className="w-4 h-4 text-gray-300" />
                       </div>
                       <div>
-                        <p className="text-sm text-white">{p.participant.name}</p>
+                        <p className="text-sm text-white">{p.user.name}</p>
                       </div>
                     </div>
                   ))

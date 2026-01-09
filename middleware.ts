@@ -104,12 +104,13 @@ export const config = {
   matcher: [
     /*
      * Match toutes les routes sauf :
-     * - api (sauf auth)
+     * - api (backend proxy)
+     * - auth-api (NextAuth routes)
      * - _next/static
      * - _next/image
      * - favicon.ico
      * - public files
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
+    '/((?!api|auth-api|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
   ],
 };

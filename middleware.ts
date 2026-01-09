@@ -1,48 +1,50 @@
 /**
  * Middleware Next.js - Protection des Routes
  * 
- * Architecture Edge Runtime :
- * - Utilise getToken() au lieu de getServerSession() (Edge compatible)
- * - Pas d'appel DB (ultra-rapide)
- * - Lecture directe du JWT
- * 
- * Sécurité :
- * - Protection /admin (SUPER_ADMIN uniquement)
- * - Protection /coach (COACH + SUPER_ADMIN)
- * - Protection /session (authentifié)
- * - Redirections strictes /login ou /403
+ * Utilise notre système d'auth personnalisé (cookie tribeat-auth)
+ * au lieu de NextAuth pour éviter les problèmes de proxy
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
+import { jwtVerify } from 'jose';
+
+const JWT_SECRET = new TextEncoder().encode(
+  process.env.NEXTAUTH_SECRET || 'tribeat-secret-key'
+);
+
+async function getTokenPayload(request: NextRequest) {
+  try {
+    const token = request.cookies.get('tribeat-auth')?.value;
+    if (!token) return null;
+    
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // Récupération du token JWT (Edge compatible, pas d'appel DB)
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+  
+  // Get user from JWT cookie
+  const user = await getTokenPayload(request);
 
   // ========================================
   // PROTECTION /admin - SUPER_ADMIN UNIQUEMENT
   // ========================================
   if (pathname.startsWith('/admin')) {
-    // Non authentifié : redirection login
-    if (!token) {
+    if (!user) {
       const loginUrl = new URL('/auth/login', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Authentifié mais pas SUPER_ADMIN : accès refusé
-    if (token.role !== 'SUPER_ADMIN') {
+    if (user.role !== 'SUPER_ADMIN') {
       return NextResponse.redirect(new URL('/403', request.url));
     }
 
-    // SUPER_ADMIN : accès autorisé
     return NextResponse.next();
   }
 
@@ -50,15 +52,13 @@ export async function middleware(request: NextRequest) {
   // PROTECTION /coach - COACH + SUPER_ADMIN
   // ========================================
   if (pathname.startsWith('/coach')) {
-    // Non authentifié : redirection login
-    if (!token) {
+    if (!user) {
       const loginUrl = new URL('/auth/login', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Vérification rôle
-    if (token.role !== 'COACH' && token.role !== 'SUPER_ADMIN') {
+    if (user.role !== 'COACH' && user.role !== 'SUPER_ADMIN') {
       return NextResponse.redirect(new URL('/403', request.url));
     }
 
@@ -69,48 +69,34 @@ export async function middleware(request: NextRequest) {
   // PROTECTION /session/[id] - AUTHENTIFIÉ
   // ========================================
   if (pathname.startsWith('/session/')) {
-    // Non authentifié : redirection login
-    if (!token) {
+    if (!user) {
       const loginUrl = new URL('/auth/login', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Authentifié : accès autorisé
     return NextResponse.next();
   }
 
   // ========================================
   // REDIRECTION SI DÉJÀ AUTHENTIFIÉ SUR /auth/*
   // ========================================
-  if (pathname.startsWith('/auth/') && token) {
-    // Redirection intelligente selon rôle
+  if (pathname.startsWith('/auth/') && user) {
     const redirects: Record<string, string> = {
       SUPER_ADMIN: '/admin/dashboard',
       COACH: '/coach/dashboard',
       PARTICIPANT: '/sessions',
     };
 
-    const redirectUrl = redirects[token.role as string] || '/';
+    const redirectUrl = redirects[user.role as string] || '/';
     return NextResponse.redirect(new URL(redirectUrl, request.url));
   }
 
-  // Routes publiques : laisser passer
   return NextResponse.next();
 }
 
-// Configuration : routes à protéger
 export const config = {
   matcher: [
-    /*
-     * Match toutes les routes sauf :
-     * - api (backend proxy)
-     * - nextauth (NextAuth routes)
-     * - _next/static
-     * - _next/image
-     * - favicon.ico
-     * - public files
-     */
     '/((?!api|nextauth|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
   ],
 };

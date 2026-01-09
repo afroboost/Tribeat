@@ -202,14 +202,20 @@ export async function checkUserAccess(
     const access = await prisma.userAccess.findFirst({
       where: {
         userId,
-        OR: [
-          { sessionId }, // Accès spécifique à la session
-          { sessionId: null }, // Accès global
-        ],
         status: 'ACTIVE',
-        OR: [
-          { expiresAt: null }, // Pas d'expiration
-          { expiresAt: { gt: new Date() } }, // Pas encore expiré
+        AND: [
+          {
+            OR: [
+              { sessionId }, // Accès spécifique à la session
+              { sessionId: null }, // Accès global
+            ],
+          },
+          {
+            OR: [
+              { expiresAt: null }, // Pas d'expiration
+              { expiresAt: { gt: new Date() } }, // Pas encore expiré
+            ],
+          },
         ],
       },
     });

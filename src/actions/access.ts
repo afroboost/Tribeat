@@ -1,13 +1,14 @@
 'use server';
 
 /**
- * Server Actions - Gestion des Accès (SessionParticipant)
- * CRUD complet pour gérer les accès utilisateurs aux sessions
+ * Server Actions - Gestion des Accès
+ * SÉCURISÉ: Vérification admin dans chaque action critique
  */
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { ParticipantRole } from '@prisma/client';
+import { requireAdmin, logAdminAction } from '@/lib/auth-helpers';
+import { AccessStatus } from '@prisma/client';
 
 interface ActionResult {
   success: boolean;
@@ -16,166 +17,230 @@ interface ActionResult {
 }
 
 /**
- * Récupérer tous les accès
+ * Récupérer tous les accès (ADMIN ONLY)
  */
 export async function getAccesses(): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if (!auth.isAdmin) {
+    return { success: false, error: auth.error };
+  }
+
   try {
-    const accesses = await prisma.sessionParticipant.findMany({
+    const accesses = await prisma.userAccess.findMany({
       include: {
         user: { select: { id: true, name: true, email: true } },
-        session: { select: { id: true, title: true, status: true } },
+        session: { select: { id: true, title: true } },
+        transaction: { select: { id: true, amount: true, provider: true } },
       },
-      orderBy: { joinedAt: 'desc' },
+      orderBy: { grantedAt: 'desc' },
     });
     return { success: true, data: accesses };
   } catch (error) {
     console.error('Error fetching accesses:', error);
-    return { success: false, error: 'Erreur lors de la récupération des accès' };
+    return { success: false, error: 'Erreur lors de la récupération' };
   }
 }
 
 /**
- * Récupérer les accès d'une session spécifique
+ * Créer un accès manuel (ADMIN ONLY)
  */
-export async function getSessionAccesses(sessionId: string): Promise<ActionResult> {
-  try {
-    const accesses = await prisma.sessionParticipant.findMany({
-      where: { sessionId },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { joinedAt: 'desc' },
-    });
-    return { success: true, data: accesses };
-  } catch (error) {
-    console.error('Error fetching session accesses:', error);
-    return { success: false, error: 'Erreur lors de la récupération des accès' };
-  }
-}
-
-/**
- * Ajouter un accès
- */
-export async function addAccess(
+export async function createManualAccess(
   userId: string,
-  sessionId: string,
-  role: ParticipantRole = 'PARTICIPANT'
+  sessionId?: string,
+  expiresAt?: Date
 ): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if (!auth.isAdmin) {
+    return { success: false, error: auth.error };
+  }
+
   try {
-    // Vérifier que l'utilisateur existe
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      return { success: false, error: 'Utilisateur introuvable' };
-    }
-
-    // Vérifier que la session existe
-    const session = await prisma.session.findUnique({ where: { id: sessionId } });
-    if (!session) {
-      return { success: false, error: 'Session introuvable' };
-    }
-
-    // Vérifier si l'accès existe déjà
-    const existing = await prisma.sessionParticipant.findUnique({
-      where: { userId_sessionId: { userId, sessionId } },
-    });
-    if (existing) {
-      return { success: false, error: 'Cet utilisateur a déjà accès à cette session' };
-    }
-
-    // Créer l'accès
-    const access = await prisma.sessionParticipant.create({
-      data: { userId, sessionId, role },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        session: { select: { id: true, title: true } },
+    const access = await prisma.userAccess.create({
+      data: {
+        userId,
+        sessionId: sessionId || null,
+        status: 'ACTIVE',
+        grantedAt: new Date(),
+        expiresAt: expiresAt || null,
       },
+      include: {
+        user: { select: { name: true, email: true } },
+        session: { select: { title: true } },
+      },
+    });
+
+    logAdminAction('CREATE_MANUAL_ACCESS', auth.userId!, {
+      accessId: access.id,
+      userId,
+      sessionId,
     });
 
     revalidatePath('/admin/access');
     return { success: true, data: access };
   } catch (error) {
-    console.error('Error adding access:', error);
-    return { success: false, error: "Erreur lors de l'ajout de l'accès" };
+    console.error('Error creating access:', error);
+    return { success: false, error: 'Erreur lors de la création' };
   }
 }
 
 /**
- * Modifier un accès (changer le rôle)
+ * Révoquer un accès (ADMIN ONLY)
  */
-export async function updateAccess(
-  accessId: string,
-  role: ParticipantRole
-): Promise<ActionResult> {
+export async function revokeAccess(accessId: string): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if (!auth.isAdmin) {
+    return { success: false, error: auth.error };
+  }
+
   try {
-    const access = await prisma.sessionParticipant.update({
+    const access = await prisma.userAccess.findUnique({
       where: { id: accessId },
-      data: { role },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        session: { select: { id: true, title: true } },
+    });
+
+    if (!access) {
+      return { success: false, error: 'Accès non trouvé' };
+    }
+
+    if (access.status === 'REVOKED') {
+      return { success: false, error: 'Accès déjà révoqué' };
+    }
+
+    await prisma.userAccess.update({
+      where: { id: accessId },
+      data: {
+        status: 'REVOKED',
+        revokedAt: new Date(),
+        revokedBy: auth.userId,
       },
     });
 
+    logAdminAction('REVOKE_ACCESS', auth.userId!, {
+      accessId,
+      userId: access.userId,
+    });
+
     revalidatePath('/admin/access');
-    return { success: true, data: access };
+    return { success: true };
   } catch (error) {
-    console.error('Error updating access:', error);
-    return { success: false, error: "Erreur lors de la modification de l'accès" };
+    console.error('Error revoking access:', error);
+    return { success: false, error: 'Erreur lors de la révocation' };
   }
 }
 
 /**
- * Supprimer un accès (révoquer)
+ * Réactiver un accès révoqué (ADMIN ONLY)
+ */
+export async function reactivateAccess(accessId: string): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if (!auth.isAdmin) {
+    return { success: false, error: auth.error };
+  }
+
+  try {
+    await prisma.userAccess.update({
+      where: { id: accessId },
+      data: {
+        status: 'ACTIVE',
+        revokedAt: null,
+        revokedBy: null,
+      },
+    });
+
+    logAdminAction('REACTIVATE_ACCESS', auth.userId!, { accessId });
+
+    revalidatePath('/admin/access');
+    return { success: true };
+  } catch (error) {
+    console.error('Error reactivating access:', error);
+    return { success: false, error: 'Erreur lors de la réactivation' };
+  }
+}
+
+/**
+ * Supprimer un accès (ADMIN ONLY)
  */
 export async function deleteAccess(accessId: string): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if (!auth.isAdmin) {
+    return { success: false, error: auth.error };
+  }
+
   try {
-    await prisma.sessionParticipant.delete({
+    const access = await prisma.userAccess.findUnique({
       where: { id: accessId },
+    });
+
+    if (!access) {
+      return { success: false, error: 'Accès non trouvé' };
+    }
+
+    await prisma.userAccess.delete({
+      where: { id: accessId },
+    });
+
+    logAdminAction('DELETE_ACCESS', auth.userId!, {
+      accessId,
+      userId: access.userId,
     });
 
     revalidatePath('/admin/access');
     return { success: true };
   } catch (error) {
     console.error('Error deleting access:', error);
-    return { success: false, error: "Erreur lors de la suppression de l'accès" };
+    return { success: false, error: 'Erreur lors de la suppression' };
   }
 }
 
 /**
- * Supprimer tous les accès d'un utilisateur
+ * Vérifier si un utilisateur a accès à une session
  */
-export async function revokeAllUserAccesses(userId: string): Promise<ActionResult> {
+export async function checkUserAccess(
+  userId: string,
+  sessionId: string
+): Promise<{ hasAccess: boolean; reason?: string }> {
   try {
-    const result = await prisma.sessionParticipant.deleteMany({
-      where: { userId },
-    });
-
-    revalidatePath('/admin/access');
-    return { success: true, data: { count: result.count } };
-  } catch (error) {
-    console.error('Error revoking all accesses:', error);
-    return { success: false, error: 'Erreur lors de la révocation des accès' };
-  }
-}
-
-/**
- * Récupérer les utilisateurs sans accès à une session spécifique
- */
-export async function getUsersWithoutAccess(sessionId: string): Promise<ActionResult> {
-  try {
-    const users = await prisma.user.findMany({
+    const access = await prisma.userAccess.findFirst({
       where: {
-        NOT: {
-          sessionRoles: {
-            some: { sessionId },
-          },
-        },
+        userId,
+        OR: [
+          { sessionId }, // Accès spécifique à la session
+          { sessionId: null }, // Accès global
+        ],
+        status: 'ACTIVE',
+        OR: [
+          { expiresAt: null }, // Pas d'expiration
+          { expiresAt: { gt: new Date() } }, // Pas encore expiré
+        ],
       },
-      select: { id: true, name: true, email: true, role: true },
     });
-    return { success: true, data: users };
+
+    if (access) {
+      return { hasAccess: true };
+    }
+
+    // Vérifier si l'utilisateur est coach ou admin
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (user?.role === 'SUPER_ADMIN' || user?.role === 'COACH') {
+      return { hasAccess: true, reason: 'admin_or_coach' };
+    }
+
+    // Vérifier si la session est publique et live
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      select: { isPublic: true, status: true },
+    });
+
+    if (session?.isPublic && session?.status === 'LIVE') {
+      return { hasAccess: true, reason: 'public_live_session' };
+    }
+
+    return { hasAccess: false, reason: 'no_access' };
   } catch (error) {
-    console.error('Error fetching users without access:', error);
-    return { success: false, error: 'Erreur' };
+    console.error('Error checking access:', error);
+    return { hasAccess: false, reason: 'error' };
   }
 }

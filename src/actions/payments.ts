@@ -140,7 +140,7 @@ export async function createStripePaymentLink(
         currency: 'CHF',
         provider: 'STRIPE',
         status: 'PENDING',
-        metadata: { description, mode: 'api_pending' },
+        metadata: JSON.stringify({ description, mode: 'api_pending' }),
       },
     });
 

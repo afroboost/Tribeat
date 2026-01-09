@@ -1,6 +1,8 @@
 /**
  * Middleware Next.js - Protection des Routes
- * Utilise NextAuth getToken pour vérifier l'authentification
+ * 
+ * IMPORTANT: La protection /admin est gérée par le layout admin
+ * pour éviter les conflits de redirection
  */
 
 import { NextResponse } from 'next/server';
@@ -10,24 +12,15 @@ import { getToken } from 'next-auth/jwt';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Récupérer le token JWT NextAuth
+  // Skip middleware for admin routes - handled by layout
+  if (pathname.startsWith('/admin')) {
+    return NextResponse.next();
+  }
+
   const token = await getToken({ 
     req: request, 
     secret: process.env.NEXTAUTH_SECRET 
   });
-
-  // Protection /admin - SUPER_ADMIN uniquement
-  if (pathname.startsWith('/admin')) {
-    if (!token) {
-      const loginUrl = new URL('/auth/login', request.url);
-      loginUrl.searchParams.set('callbackUrl', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (token.role !== 'SUPER_ADMIN') {
-      return NextResponse.redirect(new URL('/403', request.url));
-    }
-  }
 
   // Protection /coach - COACH + SUPER_ADMIN
   if (pathname.startsWith('/coach')) {
@@ -51,14 +44,27 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Protection /sessions - Authentifié
+  if (pathname === '/sessions') {
+    if (!token) {
+      const loginUrl = new URL('/auth/login', request.url);
+      loginUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
   // Redirection si déjà authentifié sur /auth/*
   if (pathname.startsWith('/auth/') && token) {
+    // SUPER_ADMIN reste sur la page auth (accès manuel à /admin)
+    if (token.role === 'SUPER_ADMIN') {
+      return NextResponse.next();
+    }
+    
     const redirects: Record<string, string> = {
-      SUPER_ADMIN: '/admin/dashboard',
       COACH: '/coach/dashboard',
       PARTICIPANT: '/sessions',
     };
-    const redirectUrl = redirects[token.role as string] || '/';
+    const redirectUrl = redirects[token.role as string] || '/sessions';
     return NextResponse.redirect(new URL(redirectUrl, request.url));
   }
 

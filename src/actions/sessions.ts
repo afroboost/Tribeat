@@ -241,3 +241,166 @@ export async function deleteSession(id: string) {
     return { success: false, error: 'Erreur lors de la suppression' };
   }
 }
+
+// ========================================
+// SESSION LIVE CONTROLS
+// ========================================
+
+/**
+ * Démarre une session (passe en LIVE)
+ * COACH propriétaire ou SUPER_ADMIN uniquement
+ */
+export async function startSession(id: string) {
+  try {
+    const session = await getAuthSession();
+    if (!session) {
+      return { success: false, error: 'Non authentifié' };
+    }
+
+    const existingSession = await prisma.session.findUnique({
+      where: { id },
+    });
+
+    if (!existingSession) {
+      return { success: false, error: 'Session introuvable' };
+    }
+
+    const isOwner = existingSession.coachId === session.user.id;
+    const isAdmin = session.user.role === 'SUPER_ADMIN';
+
+    if (!isOwner && !isAdmin) {
+      return { success: false, error: 'Non autorisé' };
+    }
+
+    if (existingSession.status === 'LIVE') {
+      return { success: false, error: 'Session déjà en cours' };
+    }
+
+    if (existingSession.status === 'COMPLETED') {
+      return { success: false, error: 'Session déjà terminée' };
+    }
+
+    const updatedSession = await prisma.session.update({
+      where: { id },
+      data: {
+        status: 'LIVE',
+        startedAt: new Date(),
+      },
+    });
+
+    revalidatePath('/admin/sessions');
+    revalidatePath('/sessions');
+    revalidatePath(`/session/${id}`);
+
+    return { success: true, data: updatedSession };
+  } catch (error) {
+    console.error('Error starting session:', error);
+    return { success: false, error: 'Erreur lors du démarrage' };
+  }
+}
+
+/**
+ * Termine une session (passe en COMPLETED)
+ * COACH propriétaire ou SUPER_ADMIN uniquement
+ */
+export async function endSessionAction(id: string) {
+  try {
+    const session = await getAuthSession();
+    if (!session) {
+      return { success: false, error: 'Non authentifié' };
+    }
+
+    const existingSession = await prisma.session.findUnique({
+      where: { id },
+    });
+
+    if (!existingSession) {
+      return { success: false, error: 'Session introuvable' };
+    }
+
+    const isOwner = existingSession.coachId === session.user.id;
+    const isAdmin = session.user.role === 'SUPER_ADMIN';
+
+    if (!isOwner && !isAdmin) {
+      return { success: false, error: 'Non autorisé' };
+    }
+
+    const updatedSession = await prisma.session.update({
+      where: { id },
+      data: {
+        status: 'COMPLETED',
+        endedAt: new Date(),
+      },
+    });
+
+    revalidatePath('/admin/sessions');
+    revalidatePath('/sessions');
+    revalidatePath(`/session/${id}`);
+
+    return { success: true, data: updatedSession };
+  } catch (error) {
+    console.error('Error ending session:', error);
+    return { success: false, error: 'Erreur lors de l\'arrêt' };
+  }
+}
+
+/**
+ * Rejoindre une session en tant que participant
+ */
+export async function joinSession(sessionId: string) {
+  try {
+    const session = await getAuthSession();
+    if (!session) {
+      return { success: false, error: 'Non authentifié' };
+    }
+
+    const liveSession = await prisma.session.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!liveSession) {
+      return { success: false, error: 'Session introuvable' };
+    }
+
+    // Vérifier si déjà participant
+    const existing = await prisma.sessionParticipant.findUnique({
+      where: {
+        userId_sessionId: {
+          userId: session.user.id,
+          sessionId,
+        },
+      },
+    });
+
+    if (existing) {
+      return { success: true, data: existing, message: 'Déjà inscrit' };
+    }
+
+    // Vérifier limite participants
+    if (liveSession.maxParticipants) {
+      const count = await prisma.sessionParticipant.count({
+        where: { sessionId },
+      });
+      if (count >= liveSession.maxParticipants) {
+        return { success: false, error: 'Session complète' };
+      }
+    }
+
+    // Créer le participant
+    const participant = await prisma.sessionParticipant.create({
+      data: {
+        userId: session.user.id,
+        sessionId,
+        role: 'PARTICIPANT',
+      },
+    });
+
+    revalidatePath(`/session/${sessionId}`);
+
+    return { success: true, data: participant };
+  } catch (error) {
+    console.error('Error joining session:', error);
+    return { success: false, error: 'Erreur lors de l\'inscription' };
+  }
+}
+

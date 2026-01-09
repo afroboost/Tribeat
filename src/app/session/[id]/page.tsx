@@ -43,7 +43,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
   // Vérifier l'accès
   const isCoach = liveSession.coachId === session.user.id;
-  const isParticipant = liveSession.participants.some(p => p.participantId === session.user.id);
+  const isParticipant = liveSession.participants.some(p => p.userId === session.user.id);
   const isAdmin = session.user.role === 'SUPER_ADMIN';
   const hasAccess = isCoach || isParticipant || isAdmin || liveSession.status === 'LIVE';
 
